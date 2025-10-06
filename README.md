@@ -1,16 +1,16 @@
-# Postty 🚀
+# Postty
 
 A straight to the point terminal-based REST API client inspired by lazygit.
 
 ## Features
 
-- 🎨 **Beautiful TUI** - Clean, lazygit-inspired interface with Bubbletea + Lipgloss
-- ⌨️ **Keyboard-Driven** - Navigate with numbers 1-5, vim-style j/k, and arrow keys
-- 🚀 **Fast & Lightweight** - Built with Go, instant startup
-- 📝 **Full HTTP Support** - GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS
-- 🎯 **Multiple Content Types** - JSON, XML, plain text, form-urlencoded, multipart
-- 🎨 **Auto-Formatting** - Automatic JSON pretty-printing
-- 🟢 **Status Indicators** - Color-coded HTTP status codes
+- **Beautiful TUI** - Clean interface using Bubbletea + Lipgloss
+- **Keyboard-Driven** - Navigate with numbers 1-5, vim-style j/k, and arrow keys
+- **Fast & Lightweight** - Built with Go, instant startup
+- **Full HTTP Support** - GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS
+- **Multiple Content Types** - JSON, XML, plain text, form-urlencoded, multipart
+- **Auto-Formatting** - Automatic JSON pretty-printing
+- **Status Indicators** - Color-coded HTTP status codes
 
 ## Quick Start
 
@@ -104,8 +104,3 @@ go build -o /usr/local/bin/postty
 
 - [lazygit](https://github.com/jesseduffield/lazygit) - UI/UX design
 - [Postman](https://www.postman.com/) - Feature set
-- [HTTPie](https://httpie.io/) - Terminal-first philosophy
-
----
-
-**Made with ❤️ and Go**
