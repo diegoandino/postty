@@ -423,29 +423,47 @@ func (m model) View() string {
 		return "Loading..."
 	}
 
+	// ✨ Enhanced fancy styles ✨
 	borderStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240")).
 		Padding(0, 1)
 
 	activeBorderStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62")).
-		Padding(0, 1)
+		BorderStyle(lipgloss.ThickBorder()).
+		BorderForeground(lipgloss.Color("213")). // Bright pink/magenta
+		Padding(0, 1).
+		Bold(true)
 
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("99"))
+		Foreground(lipgloss.Color("213")). // Bright pink
+		Underline(true)
+
+	paneNumberStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("51")). // Cyan
+		Bold(true)
 
 	statusGreenStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("10")).
-		Bold(true)
+		Foreground(lipgloss.Color("255")). // White text
+		Background(lipgloss.Color("22")).
+		Bold(true).
+		Padding(0, 1)
 
 	statusRedStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("9")).
-		Bold(true)
+		Background(lipgloss.Color("52")).
+		Bold(true).
+		Padding(0, 1)
 
 	statusYellowStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("11")).
+		Foreground(lipgloss.Color("255")). // White text
+		Background(lipgloss.Color("58")).
+		Bold(true).
+		Padding(0, 1)
+
+	selectedItemStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("212")). // Pink
 		Bold(true)
 
 	// layout: URL + Body on left, Method + Content-Type on right, Result full width at bottom
@@ -496,9 +514,7 @@ func (m model) View() string {
 	}
 
 	// Build URL pane (1 - top left, wide)
-	urlTitle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
-		Render("[1] ") + titleStyle.Render("URL")
+	urlTitle := paneNumberStyle.Render("[1] ") + titleStyle.Render("URL")
 	urlContent := urlTitle + "\n" + m.urlInput.View()
 	urlStyle := borderStyle
 	if m.activePane == URLPane {
@@ -507,13 +523,11 @@ func (m model) View() string {
 	urlPane := urlStyle.Width(leftColumnWidth).Height(urlHeight).Render(urlContent)
 
 	// Build Method pane (2 - top right, narrow)
-	methodTitle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
-		Render("[2] ") + titleStyle.Render("Method")
+	methodTitle := paneNumberStyle.Render("[2] ") + titleStyle.Render("Method")
 	methodContent := methodTitle + "\n"
 	for i, method := range httpMethods {
 		if i == m.selectedMethod {
-			methodContent += "> " + method + "\n"
+			methodContent += selectedItemStyle.Render("▶ "+method) + "\n"
 		} else {
 			methodContent += "  " + method + "\n"
 		}
@@ -525,9 +539,7 @@ func (m model) View() string {
 	methodPane := methodStyle.Width(rightColumnWidth).Height(methodHeight).Render(methodContent)
 
 	// Build Body pane (3 - middle left)
-	bodyTitle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
-		Render("[3] ") + titleStyle.Render("Body")
+	bodyTitle := paneNumberStyle.Render("[3] ") + titleStyle.Render("Body")
 	bodyContent := bodyTitle + "\n" + m.bodyInput.View()
 	bodyStyle := borderStyle
 	if m.activePane == BodyPane {
@@ -536,13 +548,11 @@ func (m model) View() string {
 	bodyPane := bodyStyle.Width(leftColumnWidth).Height(bodyHeight).Render(bodyContent)
 
 	// Build Content-Type pane (4 - right side, below methods)
-	headerTitle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
-		Render("[4] ") + titleStyle.Render("Content-Type")
+	headerTitle := paneNumberStyle.Render("[4] ") + titleStyle.Render("Content-Type")
 	headerContent := headerTitle + "\n"
 	for i, ct := range contentTypes {
 		if i == m.selectedHeader {
-			headerContent += "> " + ct + "\n"
+			headerContent += selectedItemStyle.Render("▶ "+ct) + "\n"
 		} else {
 			headerContent += "  " + ct + "\n"
 		}
@@ -554,9 +564,7 @@ func (m model) View() string {
 	headerPane := headerStyle.Width(rightColumnWidth).Height(headerHeight).Render(headerContent)
 
 	// Build Result pane (5 - bottom, full width)
-	resultTitle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
-		Render("[5] ") + titleStyle.Render("Result")
+	resultTitle := paneNumberStyle.Render("[5] ") + titleStyle.Render("Result")
 	if m.statusCode > 0 {
 		statusStyle := statusGreenStyle
 		if m.statusCode >= 400 {
@@ -590,11 +598,24 @@ func (m model) View() string {
 	// Join top section with result pane at bottom
 	mainView := lipgloss.JoinVertical(lipgloss.Left, topSection, resultPane)
 
-	// Build help bar
+	// Build help bar with enhanced styling
 	helpStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
-		Padding(0, 1)
-	help := helpStyle.Render("Tab: Next Pane | 1-5: Jump to Pane | ↑/↓ j/k: Scroll (Result) | Enter/Alt+Enter: Send | esc/q: Quit")
+		Foreground(lipgloss.Color("51")). // Cyan
+		Background(lipgloss.Color("235")).
+		Padding(0, 1).
+		Bold(true)
+
+	keyStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("213")). // Pink
+		Bold(true)
+
+	help := helpStyle.Render(
+		keyStyle.Render("Tab") + " Next Pane │ " +
+			keyStyle.Render("1-5") + " Jump │ " +
+			keyStyle.Render("↑↓jk") + " Scroll │ " +
+			keyStyle.Render("Enter") + "/" + keyStyle.Render("Alt+Enter") + " Send │ " +
+			keyStyle.Render("esc") + "/" + keyStyle.Render("q") + " Quit",
+	)
 
 	return mainView + "\n" + help
 }
