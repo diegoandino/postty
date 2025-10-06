@@ -314,8 +314,9 @@ func TestResponseMessageHandling(t *testing.T) {
 		t.Error("Expected executing to be false after receiving response")
 	}
 
-	if m.response != "Test response" {
-		t.Errorf("Expected response to be 'Test response', got %s", m.response)
+	viewportContent := strings.TrimSpace(m.responseViewport.View())
+	if !strings.HasPrefix(viewportContent, "Test response") {
+		t.Errorf("Expected response to start with 'Test response', got %s", viewportContent)
 	}
 
 	if m.statusCode != 200 {
@@ -335,8 +336,9 @@ func TestResponseMessageHandling(t *testing.T) {
 		t.Error("Expected executing to be false after receiving error")
 	}
 
-	if !strings.Contains(m.response, "Error") {
-		t.Errorf("Expected response to contain 'Error', got %s", m.response)
+	errorContent := m.responseViewport.View()
+	if !strings.Contains(errorContent, "Error") {
+		t.Errorf("Expected response to contain 'Error', got %s", errorContent)
 	}
 
 	if m.statusCode != 0 {

@@ -33,13 +33,19 @@ go build -o postty
 | `3` | Jump to Body pane (from Method/Header/Response) |
 | `4` | Jump to Content-Type pane (from Method/Header/Response) |
 | `5` | Jump to Response pane (from Method/Header/Response) |
-| `↑/↓` or `j/k` | Navigate lists (in Method/Content-Type) |
-| `Enter` | Send request |
+| `↑/↓` or `j/k` | Navigate lists (in Method/Content-Type) / Scroll (in Result) |
+| `PgUp/PgDown` | Scroll half page (in Result pane) |
+| `Home/End` or `g/G` | Jump to top/bottom (in Result pane) |
+| `Enter` | Send request (or new line in Body pane) |
+| `Alt+Enter` | Send request from Body pane |
 | `Esc` | Quit (from any pane) |
 | `q` | Quit (from Method/Header/Response only) |
 | `Ctrl+C` | Quit (from any pane) |
 
-**Note:** When typing in URL or Body panes, all characters (including q and 1-5) are typed into the input. Use `Tab` to navigate between panes while in text input fields.
+**Notes:**
+- When typing in URL or Body panes, all characters (including q and 1-5) are typed into the input. Use `Tab` to navigate between panes while in text input fields.
+- When viewing large responses in the Result pane, use arrow keys or j/k to scroll through the content
+- In the Body pane, press `Enter` for new lines and `Alt+Enter` to send the request
 
 ### Example: Making a GET Request
 
