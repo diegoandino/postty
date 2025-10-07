@@ -228,7 +228,7 @@ func TestHTTPRequestExecution(t *testing.T) {
 	defer server.Close()
 
 	// Execute the request command
-	cmd := executeRequest("POST", server.URL, `{"test": "data"}`, "application/json")
+	cmd := executeRequest("POST", server.URL, `{"test": "data"}`, "application/json", []Header{})
 	msg := cmd()
 
 	// Check the response
@@ -263,7 +263,7 @@ func TestHTTPRequestGET(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cmd := executeRequest("GET", server.URL, "", "application/json")
+	cmd := executeRequest("GET", server.URL, "", "application/json", []Header{})
 	msg := cmd()
 
 	respMsg := msg.(responseMsg)
@@ -280,7 +280,7 @@ func TestHTTPRequestGET(t *testing.T) {
 // TestHTTPRequestError tests handling of request errors
 func TestHTTPRequestError(t *testing.T) {
 	// Use an invalid URL to trigger an error
-	cmd := executeRequest("GET", "http://invalid-url-that-does-not-exist-12345.com", "", "application/json")
+	cmd := executeRequest("GET", "http://invalid-url-that-does-not-exist-12345.com", "", "application/json", []Header{})
 	msg := cmd()
 
 	respMsg, ok := msg.(responseMsg)
@@ -418,7 +418,7 @@ func TestJSONFormatting(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cmd := executeRequest("GET", server.URL, "", "application/json")
+	cmd := executeRequest("GET", server.URL, "", "application/json", []Header{})
 	msg := cmd()
 
 	respMsg := msg.(responseMsg)
@@ -456,7 +456,7 @@ func TestDifferentHTTPMethods(t *testing.T) {
 				body = `{"test": "data"}`
 			}
 
-			cmd := executeRequest(method, server.URL, body, "application/json")
+			cmd := executeRequest(method, server.URL, body, "application/json", []Header{})
 			msg := cmd()
 
 			respMsg := msg.(responseMsg)
@@ -491,7 +491,7 @@ func TestContentTypeHeader(t *testing.T) {
 			}))
 			defer server.Close()
 
-			cmd := executeRequest("POST", server.URL, "test body", tc.contentType)
+			cmd := executeRequest("POST", server.URL, "test body", tc.contentType, []Header{})
 			msg := cmd()
 
 			respMsg := msg.(responseMsg)

@@ -15,15 +15,15 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Pane represents which pane is currently focused
 type Pane int
 
 const (
-	URLPane      Pane = iota + 1 // 1
-	MethodPane                   // 2
-	BodyPane                     // 3
-	HeaderPane                   // 4
-	ResponsePane                 // 5
+	URLPane Pane = iota + 1
+	MethodPane
+	BodyPane
+	HeaderPane
+	ResponsePane
+	HeadersPane
 )
 
 var httpMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
@@ -35,17 +35,51 @@ var contentTypes = []string{
 	"multipart/form-data",
 }
 
+type Header struct {
+	Key   string
+	Value string
+}
+
+type HeaderTemplate struct {
+	Name        string
+	Key         string
+	Placeholder string
+}
+
+var headerTemplates = []HeaderTemplate{
+	{Name: "Authorization (Bearer)", Key: "Authorization", Placeholder: "Bearer <your-token>"},
+	{Name: "Authorization (Basic)", Key: "Authorization", Placeholder: "Basic <base64-credentials>"},
+	{Name: "API Key", Key: "X-API-Key", Placeholder: "<your-api-key>"},
+	{Name: "Cookie", Key: "Cookie", Placeholder: "session_id=<value>"},
+	{Name: "User Agent", Key: "User-Agent", Placeholder: "MyApp/1.0"},
+	{Name: "Accept", Key: "Accept", Placeholder: "application/json"},
+	{Name: "Custom Header", Key: "", Placeholder: ""},
+}
+
+type HeadersMode int
+
+const (
+	HeadersViewMode HeadersMode = iota
+	HeadersAddMode
+	HeadersEditMode
+)
+
 type model struct {
-	activePane       Pane
-	selectedMethod   int
-	selectedHeader   int
-	urlInput         textinput.Model
-	bodyInput        textarea.Model
-	responseViewport viewport.Model
-	statusCode       int
-	width            int
-	height           int
-	executing        bool
+	activePane           Pane
+	selectedMethod       int
+	selectedHeader       int
+	urlInput             textinput.Model
+	bodyInput            textarea.Model
+	responseViewport     viewport.Model
+	statusCode           int
+	width                int
+	height               int
+	executing            bool
+	customHeaders        []Header
+	selectedCustomHeader int
+	headersMode          HeadersMode
+	selectedTemplate     int
+	headerEditInput      textinput.Model
 }
 
 func initialModel() model {
@@ -53,27 +87,39 @@ func initialModel() model {
 	ti.Placeholder = "https://api.example.com/endpoint"
 	ti.Focus()
 	ti.CharLimit = 500
-	ti.Width = 40 // will be updated on WindowSizeMsg
+	ti.Width = 40
 
 	ta := textarea.New()
 	ta.Placeholder = "Request body (JSON, XML, etc.)"
-	ta.SetWidth(40) // will be updated on WindowSizeMsg
-	ta.SetHeight(8) // will be updated on WindowSizeMsg
+	ta.SetWidth(40)
+	ta.SetHeight(8)
 
 	vp := viewport.New(40, 10)
 	vp.SetContent("")
 
+	hei := textinput.New()
+	hei.Placeholder = "Enter header value"
+	hei.CharLimit = 500
+	hei.Width = 30
+
+	defaultHeaders := []Header{}
+
 	return model{
-		activePane:       URLPane,
-		selectedMethod:   0,
-		selectedHeader:   0,
-		urlInput:         ti,
-		bodyInput:        ta,
-		responseViewport: vp,
-		statusCode:       0,
-		width:            0,
-		height:           0,
-		executing:        false,
+		activePane:           URLPane,
+		selectedMethod:       0,
+		selectedHeader:       0,
+		urlInput:             ti,
+		bodyInput:            ta,
+		responseViewport:     vp,
+		statusCode:           0,
+		width:                0,
+		height:               0,
+		executing:            false,
+		customHeaders:        defaultHeaders,
+		selectedCustomHeader: 0,
+		headersMode:          HeadersViewMode,
+		selectedTemplate:     0,
+		headerEditInput:      hei,
 	}
 }
 
@@ -87,7 +133,7 @@ type responseMsg struct {
 	err        error
 }
 
-func executeRequest(method, url, body, contentType string) tea.Cmd {
+func executeRequest(method, url, body, contentType string, customHeaders []Header) tea.Cmd {
 	return func() tea.Msg {
 		var req *http.Request
 		var err error
@@ -104,6 +150,12 @@ func executeRequest(method, url, body, contentType string) tea.Cmd {
 
 		req.Header.Set("Content-Type", contentType)
 
+		for _, header := range customHeaders {
+			if header.Key != "" && header.Value != "" {
+				req.Header.Set(header.Key, header.Value)
+			}
+		}
+
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		if err != nil {
@@ -116,7 +168,6 @@ func executeRequest(method, url, body, contentType string) tea.Cmd {
 			return responseMsg{err: err}
 		}
 
-		// Try to format JSON
 		var prettyJSON bytes.Buffer
 		if strings.Contains(resp.Header.Get("Content-Type"), "json") {
 			if err := json.Indent(&prettyJSON, bodyBytes, "", "  "); err == nil {
@@ -143,7 +194,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		rightColumnWidth := 35
 		leftColumnWidth := m.width - rightColumnWidth - 4
 
-		// ensure min widths
 		if leftColumnWidth < 40 {
 			leftColumnWidth = 40
 			rightColumnWidth = m.width - leftColumnWidth - 4
@@ -152,52 +202,60 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// URL input fills left column - subtract border (2) + padding (2) + extra (4) = 8
 		urlInputWidth := leftColumnWidth - 8
 		if urlInputWidth < 20 {
 			urlInputWidth = 20
 		}
 		m.urlInput.Width = urlInputWidth
 
-		// body input fills left column
-		bodyInputWidth := leftColumnWidth - 8 // account for borders and padding
+		bodyInputWidth := leftColumnWidth - 8
 		if bodyInputWidth < 20 {
 			bodyInputWidth = 20
 		}
 		m.bodyInput.SetWidth(bodyInputWidth)
 
-		// calculate and set body height - new layout with result at bottom
-		// Body height should match: rightColumnTotal - urlHeight
 		availableHeight := m.height - 2
-		urlHeight := 5
-		methodHeight := 12
-		headerHeight := 9
-		resultHeight := 18
+		borderOverhead := 6
+		contentHeight := availableHeight - borderOverhead
 
-		// Adjust if terminal is too small
-		if availableHeight < 32 {
-			resultHeight = 8
-			if availableHeight < 28 {
-				methodHeight = 10
-				headerHeight = 7
-			}
+		if contentHeight < 24 {
+			contentHeight = 24
 		}
 
-		rightColumnTotalHeight := methodHeight + headerHeight
-		bodyHeight := rightColumnTotalHeight - urlHeight
-
-		if bodyHeight < 5 {
-			bodyHeight = 5
+		urlContentHeight := 3
+		topSectionContentHeight := contentHeight - int(float64(contentHeight)*0.4)
+		if topSectionContentHeight < 14 {
+			topSectionContentHeight = 14
 		}
-		m.bodyInput.SetHeight(bodyHeight)
+
+		resultContentHeight := contentHeight - topSectionContentHeight
+		if resultContentHeight < 6 {
+			resultContentHeight = 6
+		}
+
+		methodContentHeight := int(float64(topSectionContentHeight) * 0.55)
+		if methodContentHeight < 8 {
+			methodContentHeight = 8
+		}
+		headerContentHeight := (topSectionContentHeight - methodContentHeight) - 2
+		if headerContentHeight < 5 {
+			headerContentHeight = 5
+		}
+
+		rightColumnContentHeight := methodContentHeight + headerContentHeight
+		bodyContentHeight := rightColumnContentHeight - urlContentHeight
+		if bodyContentHeight < 5 {
+			bodyContentHeight = 5
+		}
+		m.bodyInput.SetHeight(bodyContentHeight)
 
 		resultPaneWidth := leftColumnWidth + rightColumnWidth
-		viewportWidth := resultPaneWidth - 4 // Subtract borders and padding
+		viewportWidth := resultPaneWidth - 4
 		if viewportWidth < 20 {
 			viewportWidth = 20
 		}
 		m.responseViewport.Width = viewportWidth
-		m.responseViewport.Height = resultHeight - 2 // subtract title line and border
+		m.responseViewport.Height = resultContentHeight - 1
 
 		return m, nil
 
@@ -221,12 +279,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "tab":
 			m.activePane++
-			if m.activePane > ResponsePane {
+			if m.activePane > HeadersPane {
 				m.activePane = URLPane
 			}
 
 			m.urlInput.Blur()
 			m.bodyInput.Blur()
+			m.headerEditInput.Blur()
+			m.headersMode = HeadersViewMode
 			if m.activePane == URLPane {
 				m.urlInput.Focus()
 				return m, textinput.Blink
@@ -236,14 +296,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		case "shift+tab":
-			// cycle to previous pane
 			m.activePane--
 			if m.activePane < URLPane {
-				m.activePane = ResponsePane
+				m.activePane = HeadersPane
 			}
-			// update focus
 			m.urlInput.Blur()
 			m.bodyInput.Blur()
+			m.headerEditInput.Blur()
+			m.headersMode = HeadersViewMode
 			if m.activePane == URLPane {
 				m.urlInput.Focus()
 				return m, textinput.Blink
@@ -254,11 +314,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// In these panes, q and 1-5 should be typed, not trigger actions
-		if m.activePane == URLPane || m.activePane == BodyPane {
-			// Check for Alt+Enter first (using key type for modifier keys)
+		if m.activePane == URLPane || m.activePane == BodyPane || (m.activePane == HeadersPane && m.headersMode == HeadersEditMode) {
 			if msg.Type == tea.KeyEnter && msg.Alt {
-				// Alt+Enter executes request from Body pane
 				if m.activePane == BodyPane && m.urlInput.Value() != "" && !m.executing {
 					m.executing = true
 					m.responseViewport.SetContent("Executing request...")
@@ -267,6 +324,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.urlInput.Value(),
 						m.bodyInput.Value(),
 						contentTypes[m.selectedHeader],
+						m.customHeaders,
 					)
 				}
 				return m, nil
@@ -274,10 +332,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			switch msg.String() {
 			case "esc":
+				if m.activePane == HeadersPane && m.headersMode == HeadersEditMode {
+					m.headersMode = HeadersViewMode
+					m.headerEditInput.Blur()
+					return m, nil
+				}
 				return m, tea.Quit
 			case "enter":
+				if m.activePane == HeadersPane && m.headersMode == HeadersEditMode {
+					if len(m.customHeaders) > 0 {
+						m.customHeaders[m.selectedCustomHeader].Value = m.headerEditInput.Value()
+						m.headersMode = HeadersViewMode
+						m.headerEditInput.Blur()
+					}
+					return m, nil
+				}
+
 				if m.activePane == URLPane {
-					// Execute request from URL pane
 					if m.urlInput.Value() != "" && !m.executing {
 						m.executing = true
 						m.responseViewport.SetContent("Executing request...")
@@ -286,15 +357,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							m.urlInput.Value(),
 							m.bodyInput.Value(),
 							contentTypes[m.selectedHeader],
+							m.customHeaders,
 						)
 					}
 					return m, nil
 				}
-				// For BodyPane, enter creates newline - fall through to textarea update
 			}
 		} else {
 			switch msg.String() {
 			case "q", "esc":
+				if m.activePane == HeadersPane && (m.headersMode == HeadersAddMode || m.headersMode == HeadersEditMode) {
+					break
+				}
 				return m, tea.Quit
 
 			case "1":
@@ -325,6 +399,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.activePane = ResponsePane
 				m.urlInput.Blur()
 				m.bodyInput.Blur()
+				m.headerEditInput.Blur()
+				m.headersMode = HeadersViewMode
+				return m, nil
+
+			case "6":
+				m.activePane = HeadersPane
+				m.urlInput.Blur()
+				m.bodyInput.Blur()
+				m.headerEditInput.Blur()
+				m.headersMode = HeadersViewMode
 				return m, nil
 			}
 
@@ -364,6 +448,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							m.urlInput.Value(),
 							m.bodyInput.Value(),
 							contentTypes[m.selectedHeader],
+							m.customHeaders,
 						)
 					}
 					return m, nil
@@ -380,6 +465,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							m.urlInput.Value(),
 							m.bodyInput.Value(),
 							contentTypes[m.selectedHeader],
+							m.customHeaders,
 						)
 					}
 					return m, nil
@@ -402,6 +488,98 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.responseViewport.GotoBottom()
 					return m, nil
 				}
+
+			case HeadersPane:
+				switch m.headersMode {
+				case HeadersViewMode:
+					switch msg.String() {
+					case "up", "k":
+						if m.selectedCustomHeader > 0 {
+							m.selectedCustomHeader--
+						}
+						return m, nil
+					case "down", "j":
+						if m.selectedCustomHeader < len(m.customHeaders)-1 {
+							m.selectedCustomHeader++
+						}
+						return m, nil
+					case "a", "n":
+						m.headersMode = HeadersAddMode
+						m.selectedTemplate = 0
+						return m, nil
+					case "d", "x":
+						if len(m.customHeaders) > 0 {
+							m.customHeaders = append(m.customHeaders[:m.selectedCustomHeader], m.customHeaders[m.selectedCustomHeader+1:]...)
+							if m.selectedCustomHeader >= len(m.customHeaders) && len(m.customHeaders) > 0 {
+								m.selectedCustomHeader = len(m.customHeaders) - 1
+							}
+							if len(m.customHeaders) == 0 {
+								m.selectedCustomHeader = 0
+							}
+						}
+						return m, nil
+					case "e", "enter":
+						if len(m.customHeaders) > 0 {
+							m.headersMode = HeadersEditMode
+							m.headerEditInput.SetValue(m.customHeaders[m.selectedCustomHeader].Value)
+							m.headerEditInput.Focus()
+							return m, textinput.Blink
+						}
+						return m, nil
+					case "esc":
+						return m, tea.Quit
+					}
+
+				case HeadersAddMode:
+					switch msg.String() {
+					case "up", "k":
+						if m.selectedTemplate > 0 {
+							m.selectedTemplate--
+						}
+						return m, nil
+					case "down", "j":
+						if m.selectedTemplate < len(headerTemplates)-1 {
+							m.selectedTemplate++
+						}
+						return m, nil
+					case "enter":
+						template := headerTemplates[m.selectedTemplate]
+						if template.Key == "" {
+							m.customHeaders = append(m.customHeaders, Header{Key: "Custom-Header", Value: ""})
+							m.selectedCustomHeader = len(m.customHeaders) - 1
+							m.headersMode = HeadersEditMode
+							m.headerEditInput.SetValue("")
+							m.headerEditInput.Focus()
+							return m, textinput.Blink
+						} else {
+							m.customHeaders = append(m.customHeaders, Header{
+								Key:   template.Key,
+								Value: template.Placeholder,
+							})
+							m.selectedCustomHeader = len(m.customHeaders) - 1
+							m.headersMode = HeadersViewMode
+						}
+						return m, nil
+					case "esc":
+						m.headersMode = HeadersViewMode
+						return m, nil
+					}
+
+				case HeadersEditMode:
+					switch msg.String() {
+					case "enter":
+						if len(m.customHeaders) > 0 {
+							m.customHeaders[m.selectedCustomHeader].Value = m.headerEditInput.Value()
+							m.headersMode = HeadersViewMode
+							m.headerEditInput.Blur()
+						}
+						return m, nil
+					case "esc":
+						m.headersMode = HeadersViewMode
+						m.headerEditInput.Blur()
+						return m, nil
+					}
+				}
 			}
 		}
 	}
@@ -413,6 +591,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case BodyPane:
 		m.bodyInput, cmd = m.bodyInput.Update(msg)
 		cmds = append(cmds, cmd)
+	case HeadersPane:
+		if m.headersMode == HeadersEditMode {
+			m.headerEditInput, cmd = m.headerEditInput.Update(msg)
+			cmds = append(cmds, cmd)
+		}
 	}
 
 	return m, tea.Batch(cmds...)
@@ -423,7 +606,6 @@ func (m model) View() string {
 		return "Loading..."
 	}
 
-	// ✨ Enhanced fancy styles ✨
 	borderStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("240")).
@@ -431,21 +613,21 @@ func (m model) View() string {
 
 	activeBorderStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.ThickBorder()).
-		BorderForeground(lipgloss.Color("213")). // Bright pink/magenta
+		BorderForeground(lipgloss.Color("213")).
 		Padding(0, 1).
 		Bold(true)
 
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("213")). // Bright pink
+		Foreground(lipgloss.Color("213")).
 		Underline(true)
 
 	paneNumberStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("51")). // Cyan
+		Foreground(lipgloss.Color("51")).
 		Bold(true)
 
 	statusGreenStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("255")). // White text
+		Foreground(lipgloss.Color("255")).
 		Background(lipgloss.Color("22")).
 		Bold(true).
 		Padding(0, 1)
@@ -457,20 +639,18 @@ func (m model) View() string {
 		Padding(0, 1)
 
 	statusYellowStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("255")). // White text
+		Foreground(lipgloss.Color("255")).
 		Background(lipgloss.Color("58")).
 		Bold(true).
 		Padding(0, 1)
 
 	selectedItemStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("212")). // Pink
+		Foreground(lipgloss.Color("212")).
 		Bold(true)
 
-	// layout: URL + Body on left, Method + Content-Type on right, Result full width at bottom
 	rightColumnWidth := 40
-	leftColumnWidth := m.width - rightColumnWidth - 4 // Leave 4-char buffer to prevent overflow
+	leftColumnWidth := m.width - rightColumnWidth - 4
 
-	// Ensure we have minimum widths
 	if leftColumnWidth < 40 {
 		leftColumnWidth = 40
 		rightColumnWidth = m.width - leftColumnWidth - 4
@@ -479,41 +659,45 @@ func (m model) View() string {
 		}
 	}
 
-	// Calculate heights based on available terminal space
-	// Reserve space for help bar (2 lines)
 	availableHeight := m.height - 2
+	borderOverhead := 6
+	contentHeight := availableHeight - borderOverhead
 
-	// Fixed heights for panes
-	urlHeight := 5
-	methodHeight := 12 // Height for Method pane (7 methods + title + padding)
-	headerHeight := 10 // Height for Content-Type pane (5 types + title + padding)
-	resultHeight := 18 // Height for result pane
-
-	// Adjust if terminal is too small
-	if availableHeight < 32 {
-		resultHeight = 8
-		if availableHeight < 28 {
-			methodHeight = 10
-			headerHeight = 7
-		}
+	if contentHeight < 24 {
+		contentHeight = 24
 	}
 
-	// Calculate body height to match the right column total height
-	// Right column = Method + Content-Type
-	// Left column = URL + Body
-	// Body height = (Method + Content-Type) - URL
-	rightColumnTotalHeight := methodHeight + headerHeight
-	bodyHeight := rightColumnTotalHeight - urlHeight
+	urlHeight := 3
+	sectionHeight := contentHeight / 3
+	if sectionHeight < 8 {
+		sectionHeight = 8
+	}
 
-	// Ensure minimum heights
+	methodHeight := sectionHeight
+	if methodHeight < 8 {
+		methodHeight = 8
+	}
+
+	headerHeight := sectionHeight - 3
+	if headerHeight < 5 {
+		headerHeight = 5
+	}
+
+	headersHeight := contentHeight - methodHeight - headerHeight
+	if headersHeight < 6 {
+		headersHeight = 6
+	}
+
+	bodyHeight := methodHeight - urlHeight
 	if bodyHeight < 5 {
 		bodyHeight = 5
 	}
-	if resultHeight < 5 {
-		resultHeight = 5
+
+	resultHeight := (contentHeight - urlHeight - bodyHeight) - 10
+	if resultHeight < 8 {
+		resultHeight = 8
 	}
 
-	// Build URL pane (1 - top left, wide)
 	urlTitle := paneNumberStyle.Render("[1] ") + titleStyle.Render("URL")
 	urlContent := urlTitle + "\n" + m.urlInput.View()
 	urlStyle := borderStyle
@@ -522,7 +706,6 @@ func (m model) View() string {
 	}
 	urlPane := urlStyle.Width(leftColumnWidth).Height(urlHeight).Render(urlContent)
 
-	// Build Method pane (2 - top right, narrow)
 	methodTitle := paneNumberStyle.Render("[2] ") + titleStyle.Render("Method")
 	methodContent := methodTitle + "\n"
 	for i, method := range httpMethods {
@@ -538,7 +721,6 @@ func (m model) View() string {
 	}
 	methodPane := methodStyle.Width(rightColumnWidth).Height(methodHeight).Render(methodContent)
 
-	// Build Body pane (3 - middle left)
 	bodyTitle := paneNumberStyle.Render("[3] ") + titleStyle.Render("Body")
 	bodyContent := bodyTitle + "\n" + m.bodyInput.View()
 	bodyStyle := borderStyle
@@ -547,7 +729,6 @@ func (m model) View() string {
 	}
 	bodyPane := bodyStyle.Width(leftColumnWidth).Height(bodyHeight).Render(bodyContent)
 
-	// Build Content-Type pane (4 - right side, below methods)
 	headerTitle := paneNumberStyle.Render("[4] ") + titleStyle.Render("Content-Type")
 	headerContent := headerTitle + "\n"
 	for i, ct := range contentTypes {
@@ -563,7 +744,6 @@ func (m model) View() string {
 	}
 	headerPane := headerStyle.Width(rightColumnWidth).Height(headerHeight).Render(headerContent)
 
-	// Build Result pane (5 - bottom, full width)
 	resultTitle := paneNumberStyle.Render("[5] ") + titleStyle.Render("Result")
 	if m.statusCode > 0 {
 		statusStyle := statusGreenStyle
@@ -582,36 +762,82 @@ func (m model) View() string {
 		resultStyle = activeBorderStyle
 	}
 
-	// Result pane width should match the combined width of left + right columns
-	resultPaneWidth := (leftColumnWidth + rightColumnWidth) + 2
+	resultPaneWidth := leftColumnWidth
 	resultPane := resultStyle.Width(resultPaneWidth).Height(resultHeight).Render(resultContent)
 
-	// Build left column: URL + Body
-	leftColumn := lipgloss.JoinVertical(lipgloss.Left, urlPane, bodyPane)
+	headersTitle := paneNumberStyle.Render("[6] ") + titleStyle.Render("Custom Headers")
+	headersContent := headersTitle + "\n"
 
-	// Build right column: Method + Content-Type
-	rightColumn := lipgloss.JoinVertical(lipgloss.Left, methodPane, headerPane)
+	switch m.headersMode {
+	case HeadersViewMode:
+		if len(m.customHeaders) == 0 {
+			headersContent += "  (no headers)\n"
+			headersContent += "\n"
+			headersContent += "  Press 'a' to add\n"
+		} else {
+			for i, h := range m.customHeaders {
+				prefix := "  "
+				if i == m.selectedCustomHeader {
+					prefix = selectedItemStyle.Render("▶ ")
+				}
+				headerLine := fmt.Sprintf("%s: %s", h.Key, h.Value)
+				if h.Key == "" && h.Value == "" {
+					headerLine = "(empty)"
+				}
+				headersContent += prefix + headerLine + "\n"
+			}
+			headersContent += "\n"
+			headersContent += "  a: add | d: delete | e: edit\n"
+		}
 
-	// Join left and right columns for top section
-	topSection := lipgloss.JoinHorizontal(lipgloss.Top, leftColumn, rightColumn)
+	case HeadersAddMode:
+		headersContent += "  Select header type:\n"
+		headersContent += "\n"
+		for i, template := range headerTemplates {
+			prefix := "  "
+			if i == m.selectedTemplate {
+				prefix = selectedItemStyle.Render("▶ ")
+			}
+			headersContent += prefix + template.Name + "\n"
+		}
+		headersContent += "\n"
+		headersContent += "  Enter: select | Esc: cancel\n"
 
-	// Join top section with result pane at bottom
-	mainView := lipgloss.JoinVertical(lipgloss.Left, topSection, resultPane)
+	case HeadersEditMode:
+		if len(m.customHeaders) > 0 {
+			header := m.customHeaders[m.selectedCustomHeader]
+			headersContent += fmt.Sprintf("  Editing: %s\n", header.Key)
+			headersContent += "\n"
+			headersContent += "  Value:\n"
+			headersContent += "  " + m.headerEditInput.View() + "\n"
+			headersContent += "\n"
+			headersContent += "  Enter: save | Esc: cancel\n"
+		}
+	}
 
-	// Build help bar with enhanced styling
+	headersStyle := borderStyle
+	if m.activePane == HeadersPane {
+		headersStyle = activeBorderStyle
+	}
+	headersPane := headersStyle.Width(rightColumnWidth).Height(headersHeight).Render(headersContent)
+
+	leftColumn := lipgloss.JoinVertical(lipgloss.Left, urlPane, bodyPane, resultPane)
+	rightColumn := lipgloss.JoinVertical(lipgloss.Left, methodPane, headerPane, headersPane)
+	mainView := lipgloss.JoinHorizontal(lipgloss.Top, leftColumn, rightColumn)
+
 	helpStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("51")). // Cyan
+		Foreground(lipgloss.Color("51")).
 		Background(lipgloss.Color("235")).
 		Padding(0, 1).
 		Bold(true)
 
 	keyStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("213")). // Pink
+		Foreground(lipgloss.Color("213")).
 		Bold(true)
 
 	help := helpStyle.Render(
 		keyStyle.Render("Tab") + " Next Pane │ " +
-			keyStyle.Render("1-5") + " Jump │ " +
+			keyStyle.Render("1-6") + " Jump │ " +
 			keyStyle.Render("↑↓jk") + " Scroll │ " +
 			keyStyle.Render("Enter") + "/" + keyStyle.Render("Alt+Enter") + " Send │ " +
 			keyStyle.Render("esc") + "/" + keyStyle.Render("q") + " Quit",
