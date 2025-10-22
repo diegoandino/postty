@@ -2,3 +2,4 @@ CLAUDE.md
 *.env
 postty
 releases/
+.DS_Store

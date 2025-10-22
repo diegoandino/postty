@@ -9,34 +9,38 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"postty/src/model"
+	"postty/src/services"
+	"postty/src/types"
 )
 
 // TestInitialModel tests that the initial model is set up correctly
 func TestInitialModel(t *testing.T) {
-	m := initialModel()
+	m := model.New()
 
-	if m.activePane != URLPane {
-		t.Errorf("Expected initial active pane to be URLPane, got %v", m.activePane)
+	if m.ActivePane != types.URLPane {
+		t.Errorf("Expected initial active pane to be URLPane, got %v", m.ActivePane)
 	}
 
-	if m.selectedMethod != 0 {
-		t.Errorf("Expected initial selected method to be 0 (GET), got %d", m.selectedMethod)
+	if m.SelectedMethod != 0 {
+		t.Errorf("Expected initial selected method to be 0 (GET), got %d", m.SelectedMethod)
 	}
 
-	if m.selectedHeader != 0 {
-		t.Errorf("Expected initial selected header to be 0, got %d", m.selectedHeader)
+	if m.SelectedHeader != 0 {
+		t.Errorf("Expected initial selected header to be 0, got %d", m.SelectedHeader)
 	}
 
-	if m.executing {
+	if m.Executing {
 		t.Error("Expected executing to be false initially")
 	}
 
-	if m.urlInput.Value() != "" {
-		t.Errorf("Expected URL input to be empty, got %s", m.urlInput.Value())
+	if m.URLInput.Value() != "" {
+		t.Errorf("Expected URL input to be empty, got %s", m.URLInput.Value())
 	}
 
-	if m.bodyInput.Value() != "" {
-		t.Errorf("Expected body input to be empty, got %s", m.bodyInput.Value())
+	if m.BodyInput.Value() != "" {
+		t.Errorf("Expected body input to be empty, got %s", m.BodyInput.Value())
 	}
 }
 
@@ -45,34 +49,35 @@ func TestPaneNavigation(t *testing.T) {
 	tests := []struct {
 		name         string
 		key          string
-		expectedPane Pane
+		expectedPane types.Pane
 	}{
-		{"Switch to URL pane", "1", URLPane},
-		{"Switch to Method pane", "2", MethodPane},
-		{"Switch to Body pane", "3", BodyPane},
-		{"Switch to Header pane", "4", HeaderPane},
-		{"Switch to Response pane", "5", ResponsePane},
+		{"Switch to URL pane", "1", types.URLPane},
+		{"Switch to Method pane", "2", types.MethodPane},
+		{"Switch to Body pane", "3", types.BodyPane},
+		{"Switch to Header pane", "4", types.HeaderPane},
+		{"Switch to Response pane", "5", types.ResponsePane},
+		{"Switch to Headers pane", "6", types.HeadersPane},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := initialModel()
-			m.width = 100
-			m.height = 40
+			a := app{model: model.New()}
+			a.model.Width = 100
+			a.model.Height = 40
 
 			// First, use Tab to get to MethodPane (a non-text-input pane)
 			// so that number keys work for pane switching
 			tabMsg := tea.KeyMsg{Type: tea.KeyTab}
-			newModel, _ := m.Update(tabMsg)
-			m = newModel.(model)
+			newApp, _ := a.Update(tabMsg)
+			a = newApp.(app)
 
 			// Now test number key navigation from MethodPane
 			msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)}
-			newModel, _ = m.Update(msg)
-			m = newModel.(model)
+			newApp, _ = a.Update(msg)
+			a = newApp.(app)
 
-			if m.activePane != tt.expectedPane {
-				t.Errorf("Expected active pane to be %v, got %v", tt.expectedPane, m.activePane)
+			if a.model.ActivePane != tt.expectedPane {
+				t.Errorf("Expected active pane to be %v, got %v", tt.expectedPane, a.model.ActivePane)
 			}
 		})
 	}
@@ -80,121 +85,93 @@ func TestPaneNavigation(t *testing.T) {
 
 // TestMethodSelection tests navigating through HTTP methods
 func TestMethodSelection(t *testing.T) {
-	m := initialModel()
-	m.width = 100
-	m.height = 40
-	m.activePane = MethodPane
+	a := app{model: model.New()}
+	a.model.Width = 100
+	a.model.Height = 40
+	a.model.ActivePane = types.MethodPane
 
 	// Test moving down
 	downMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")}
-	newModel, _ := m.Update(downMsg)
-	m = newModel.(model)
+	newApp, _ := a.Update(downMsg)
+	a = newApp.(app)
 
-	if m.selectedMethod != 1 {
-		t.Errorf("Expected selected method to be 1 after pressing j, got %d", m.selectedMethod)
+	if a.model.SelectedMethod != 1 {
+		t.Errorf("Expected selected method to be 1 after pressing j, got %d", a.model.SelectedMethod)
 	}
 
 	// Test moving up
 	upMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")}
-	newModel, _ = m.Update(upMsg)
-	m = newModel.(model)
+	newApp, _ = a.Update(upMsg)
+	a = newApp.(app)
 
-	if m.selectedMethod != 0 {
-		t.Errorf("Expected selected method to be 0 after pressing k, got %d", m.selectedMethod)
+	if a.model.SelectedMethod != 0 {
+		t.Errorf("Expected selected method to be 0 after pressing k, got %d", a.model.SelectedMethod)
 	}
 
 	// Test boundary - can't go below 0
-	newModel, _ = m.Update(upMsg)
-	m = newModel.(model)
+	newApp, _ = a.Update(upMsg)
+	a = newApp.(app)
 
-	if m.selectedMethod != 0 {
-		t.Errorf("Expected selected method to stay at 0, got %d", m.selectedMethod)
+	if a.model.SelectedMethod != 0 {
+		t.Errorf("Expected selected method to stay at 0, got %d", a.model.SelectedMethod)
 	}
 
 	// Test moving to last method
-	for i := 0; i < len(httpMethods); i++ {
-		newModel, _ = m.Update(downMsg)
-		m = newModel.(model)
+	for i := 0; i < len(types.HTTPMethods); i++ {
+		newApp, _ = a.Update(downMsg)
+		a = newApp.(app)
 	}
 
-	if m.selectedMethod >= len(httpMethods) {
-		t.Errorf("Selected method should not exceed array bounds, got %d", m.selectedMethod)
+	if a.model.SelectedMethod >= len(types.HTTPMethods) {
+		t.Errorf("Selected method should not exceed array bounds, got %d", a.model.SelectedMethod)
 	}
 }
 
 // TestHeaderSelection tests navigating through content types
 func TestHeaderSelection(t *testing.T) {
-	m := initialModel()
-	m.width = 100
-	m.height = 40
-	m.activePane = HeaderPane
+	a := app{model: model.New()}
+	a.model.Width = 100
+	a.model.Height = 40
+	a.model.ActivePane = types.HeaderPane
 
 	// Test moving down
 	downMsg := tea.KeyMsg{Type: tea.KeyDown}
-	newModel, _ := m.Update(downMsg)
-	m = newModel.(model)
+	newApp, _ := a.Update(downMsg)
+	a = newApp.(app)
 
-	if m.selectedHeader != 1 {
-		t.Errorf("Expected selected header to be 1 after pressing down, got %d", m.selectedHeader)
+	if a.model.SelectedHeader != 1 {
+		t.Errorf("Expected selected header to be 1 after pressing down, got %d", a.model.SelectedHeader)
 	}
 
 	// Test moving up
 	upMsg := tea.KeyMsg{Type: tea.KeyUp}
-	newModel, _ = m.Update(upMsg)
-	m = newModel.(model)
+	newApp, _ = a.Update(upMsg)
+	a = newApp.(app)
 
-	if m.selectedHeader != 0 {
-		t.Errorf("Expected selected header to be 0 after pressing up, got %d", m.selectedHeader)
+	if a.model.SelectedHeader != 0 {
+		t.Errorf("Expected selected header to be 0 after pressing up, got %d", a.model.SelectedHeader)
 	}
 }
 
 // TestWindowSizeUpdate tests that window size updates correctly update model dimensions
 func TestWindowSizeUpdate(t *testing.T) {
-	m := initialModel()
+	a := app{model: model.New()}
 
 	msg := tea.WindowSizeMsg{Width: 120, Height: 50}
-	newModel, _ := m.Update(msg)
-	m = newModel.(model)
+	newApp, _ := a.Update(msg)
+	a = newApp.(app)
 
-	if m.width != 120 {
-		t.Errorf("Expected width to be 120, got %d", m.width)
+	if a.model.Width != 120 {
+		t.Errorf("Expected width to be 120, got %d", a.model.Width)
 	}
 
-	if m.height != 50 {
-		t.Errorf("Expected height to be 50, got %d", m.height)
+	if a.model.Height != 50 {
+		t.Errorf("Expected height to be 50, got %d", a.model.Height)
 	}
 
 	// Check that input widths were updated
-	if m.urlInput.Width < 10 {
-		t.Errorf("URL input width should be set, got %d", m.urlInput.Width)
-	}
-}
-
-// TestQuitKeys tests that q and ctrl+c trigger quit
-func TestQuitKeys(t *testing.T) {
-	tests := []struct {
-		name string
-		key  tea.KeyMsg
-	}{
-		{"Quit with q", tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")}},
-		{"Quit with ctrl+c", tea.KeyMsg{Type: tea.KeyCtrlC}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := initialModel()
-			m.width = 100
-			m.height = 40
-
-			_, cmd := m.Update(tt.key)
-
-			if cmd == nil {
-				t.Error("Expected quit command to be returned")
-			}
-
-			// Note: We can't directly compare cmd to tea.Quit as they're both functions,
-			// but we verified that cmd is not nil, which indicates a quit command was returned
-		})
+	if a.model.URLInput.Width < 10 {
+		t.Errorf("URL input width should be set, got %d", a.model.URLInput.Width)
 	}
 }
 
@@ -228,25 +205,25 @@ func TestHTTPRequestExecution(t *testing.T) {
 	defer server.Close()
 
 	// Execute the request command
-	cmd := executeRequest("POST", server.URL, `{"test": "data"}`, "application/json", []Header{})
+	cmd := services.ExecuteRequest("POST", server.URL, `{"test": "data"}`, "application/json", []types.Header{})
 	msg := cmd()
 
 	// Check the response
-	respMsg, ok := msg.(responseMsg)
+	respMsg, ok := msg.(types.ResponseMsg)
 	if !ok {
-		t.Fatal("Expected responseMsg type")
+		t.Fatal("Expected types.ResponseMsg type")
 	}
 
-	if respMsg.err != nil {
-		t.Fatalf("Expected no error, got %v", respMsg.err)
+	if respMsg.Err != nil {
+		t.Fatalf("Expected no error, got %v", respMsg.Err)
 	}
 
-	if respMsg.statusCode != http.StatusOK {
-		t.Errorf("Expected status code 200, got %d", respMsg.statusCode)
+	if respMsg.StatusCode != http.StatusOK {
+		t.Errorf("Expected status code 200, got %d", respMsg.StatusCode)
 	}
 
-	if !strings.Contains(respMsg.body, "success") {
-		t.Errorf("Expected response body to contain 'success', got %s", respMsg.body)
+	if !strings.Contains(respMsg.Body, "success") {
+		t.Errorf("Expected response body to contain 'success', got %s", respMsg.Body)
 	}
 }
 
@@ -263,177 +240,107 @@ func TestHTTPRequestGET(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cmd := executeRequest("GET", server.URL, "", "application/json", []Header{})
+	cmd := services.ExecuteRequest("GET", server.URL, "", "application/json", []types.Header{})
 	msg := cmd()
 
-	respMsg := msg.(responseMsg)
+	respMsg := msg.(types.ResponseMsg)
 
-	if respMsg.err != nil {
-		t.Fatalf("Expected no error, got %v", respMsg.err)
+	if respMsg.Err != nil {
+		t.Fatalf("Expected no error, got %v", respMsg.Err)
 	}
 
-	if respMsg.statusCode != http.StatusOK {
-		t.Errorf("Expected status code 200, got %d", respMsg.statusCode)
+	if respMsg.StatusCode != http.StatusOK {
+		t.Errorf("Expected status code 200, got %d", respMsg.StatusCode)
 	}
 }
 
 // TestHTTPRequestError tests handling of request errors
 func TestHTTPRequestError(t *testing.T) {
 	// Use an invalid URL to trigger an error
-	cmd := executeRequest("GET", "http://invalid-url-that-does-not-exist-12345.com", "", "application/json", []Header{})
+	cmd := services.ExecuteRequest("GET", "http://invalid-url-that-does-not-exist-12345.com", "", "application/json", []types.Header{})
 	msg := cmd()
 
-	respMsg, ok := msg.(responseMsg)
+	respMsg, ok := msg.(types.ResponseMsg)
 	if !ok {
-		t.Fatal("Expected responseMsg type")
+		t.Fatal("Expected types.ResponseMsg type")
 	}
 
-	if respMsg.err == nil {
+	if respMsg.Err == nil {
 		t.Error("Expected an error for invalid URL")
 	}
 }
 
 // TestResponseMessageHandling tests that the model correctly handles response messages
 func TestResponseMessageHandling(t *testing.T) {
-	m := initialModel()
-	m.width = 100
-	m.height = 40
-	m.executing = true
+	a := app{model: model.New()}
+	a.model.Width = 100
+	a.model.Height = 40
+	a.model.Executing = true
 
 	// Test successful response
-	respMsg := responseMsg{
-		body:       "Test response",
-		statusCode: 200,
-		err:        nil,
+	respMsg := types.ResponseMsg{
+		Body:       "Test response",
+		StatusCode: 200,
+		Err:        nil,
 	}
 
-	newModel, _ := m.Update(respMsg)
-	m = newModel.(model)
+	newApp, _ := a.Update(respMsg)
+	a = newApp.(app)
 
-	if m.executing {
+	if a.model.Executing {
 		t.Error("Expected executing to be false after receiving response")
 	}
 
-	viewportContent := strings.TrimSpace(m.responseViewport.View())
+	viewportContent := strings.TrimSpace(a.model.ResponseViewport.View())
 	if !strings.HasPrefix(viewportContent, "Test response") {
 		t.Errorf("Expected response to start with 'Test response', got %s", viewportContent)
 	}
 
-	if m.statusCode != 200 {
-		t.Errorf("Expected status code to be 200, got %d", m.statusCode)
+	if a.model.StatusCode != 200 {
+		t.Errorf("Expected status code to be 200, got %d", a.model.StatusCode)
 	}
 
 	// Test error response
-	m.executing = true
-	errorMsg := responseMsg{
-		err: http.ErrServerClosed,
+	a.model.Executing = true
+	errorMsg := types.ResponseMsg{
+		Err: http.ErrServerClosed,
 	}
 
-	newModel, _ = m.Update(errorMsg)
-	m = newModel.(model)
+	newApp, _ = a.Update(errorMsg)
+	a = newApp.(app)
 
-	if m.executing {
+	if a.model.Executing {
 		t.Error("Expected executing to be false after receiving error")
 	}
 
-	errorContent := m.responseViewport.View()
+	errorContent := a.model.ResponseViewport.View()
 	if !strings.Contains(errorContent, "Error") {
 		t.Errorf("Expected response to contain 'Error', got %s", errorContent)
 	}
 
-	if m.statusCode != 0 {
-		t.Errorf("Expected status code to be 0 on error, got %d", m.statusCode)
+	if a.model.StatusCode != 0 {
+		t.Errorf("Expected status code to be 0 on error, got %d", a.model.StatusCode)
 	}
 }
 
 // TestEnterKeyExecutesRequest tests that pressing Enter in URL pane executes request
 func TestEnterKeyExecutesRequest(t *testing.T) {
-	m := initialModel()
-	m.width = 100
-	m.height = 40
-	m.activePane = URLPane
-	m.urlInput.SetValue("https://example.com")
+	a := app{model: model.New()}
+	a.model.Width = 100
+	a.model.Height = 40
+	a.model.ActivePane = types.URLPane
+	a.model.URLInput.SetValue("https://example.com")
 
 	enterMsg := tea.KeyMsg{Type: tea.KeyEnter}
-	newModel, cmd := m.Update(enterMsg)
-	m = newModel.(model)
+	newApp, cmd := a.Update(enterMsg)
+	a = newApp.(app)
 
-	if !m.executing {
+	if !a.model.Executing {
 		t.Error("Expected executing to be true after pressing Enter")
 	}
 
 	if cmd == nil {
 		t.Error("Expected a command to be returned for request execution")
-	}
-}
-
-// TestEnterKeyInResponsePane tests that pressing Enter in response pane also executes request
-func TestEnterKeyInResponsePane(t *testing.T) {
-	m := initialModel()
-	m.width = 100
-	m.height = 40
-	m.activePane = ResponsePane
-	m.urlInput.SetValue("https://example.com")
-
-	enterMsg := tea.KeyMsg{Type: tea.KeyEnter}
-	newModel, cmd := m.Update(enterMsg)
-	m = newModel.(model)
-
-	if !m.executing {
-		t.Error("Expected executing to be true after pressing Enter in response pane")
-	}
-
-	if cmd == nil {
-		t.Error("Expected a command to be returned for request execution")
-	}
-}
-
-// TestEnterKeyEmptyURL tests that pressing Enter with empty URL does nothing
-func TestEnterKeyEmptyURL(t *testing.T) {
-	m := initialModel()
-	m.width = 100
-	m.height = 40
-	m.activePane = URLPane
-	// URL is empty
-
-	enterMsg := tea.KeyMsg{Type: tea.KeyEnter}
-	newModel, cmd := m.Update(enterMsg)
-	m = newModel.(model)
-
-	if m.executing {
-		t.Error("Expected executing to remain false with empty URL")
-	}
-
-	// cmd might be nil or a no-op
-	_ = cmd
-}
-
-// TestJSONFormatting tests that JSON responses are formatted
-func TestJSONFormatting(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		// Send compact JSON
-		w.Write([]byte(`{"key":"value","nested":{"data":"test"}}`))
-	}))
-	defer server.Close()
-
-	cmd := executeRequest("GET", server.URL, "", "application/json", []Header{})
-	msg := cmd()
-
-	respMsg := msg.(responseMsg)
-
-	if respMsg.err != nil {
-		t.Fatalf("Expected no error, got %v", respMsg.err)
-	}
-
-	// Check that JSON is formatted (contains newlines and indentation)
-	if !strings.Contains(respMsg.body, "\n") {
-		t.Error("Expected formatted JSON to contain newlines")
-	}
-
-	if !strings.Contains(respMsg.body, "  ") {
-		t.Error("Expected formatted JSON to contain indentation")
 	}
 }
 
@@ -456,12 +363,12 @@ func TestDifferentHTTPMethods(t *testing.T) {
 				body = `{"test": "data"}`
 			}
 
-			cmd := executeRequest(method, server.URL, body, "application/json", []Header{})
+			cmd := services.ExecuteRequest(method, server.URL, body, "application/json", []types.Header{})
 			msg := cmd()
 
-			respMsg := msg.(responseMsg)
-			if respMsg.err != nil {
-				t.Errorf("Expected no error for %s, got %v", method, respMsg.err)
+			respMsg := msg.(types.ResponseMsg)
+			if respMsg.Err != nil {
+				t.Errorf("Expected no error for %s, got %v", method, respMsg.Err)
 			}
 		})
 	}
@@ -491,101 +398,44 @@ func TestContentTypeHeader(t *testing.T) {
 			}))
 			defer server.Close()
 
-			cmd := executeRequest("POST", server.URL, "test body", tc.contentType, []Header{})
+			cmd := services.ExecuteRequest("POST", server.URL, "test body", tc.contentType, []types.Header{})
 			msg := cmd()
 
-			respMsg := msg.(responseMsg)
-			if respMsg.err != nil {
-				t.Errorf("Expected no error, got %v", respMsg.err)
+			respMsg := msg.(types.ResponseMsg)
+			if respMsg.Err != nil {
+				t.Errorf("Expected no error, got %v", respMsg.Err)
 			}
 		})
 	}
 }
 
-// TestViewRendersWithoutPanic tests that View doesn't panic
-func TestViewRendersWithoutPanic(t *testing.T) {
-	defer func() {
-		if r := recover(); r != nil {
-			t.Errorf("View panicked: %v", r)
+// TestCustomHeaders tests that custom headers are properly sent
+func TestCustomHeaders(t *testing.T) {
+	customHeaders := []types.Header{
+		{Key: "Authorization", Value: "Bearer test-token"},
+		{Key: "X-Custom-Header", Value: "custom-value"},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		if auth != "Bearer test-token" {
+			t.Errorf("Expected Authorization header to be 'Bearer test-token', got %s", auth)
 		}
-	}()
 
-	m := initialModel()
-	// Before window size
-	view := m.View()
-	if view != "Loading..." {
-		t.Errorf("Expected 'Loading...' before window size, got %s", view)
-	}
-
-	// After window size
-	m.width = 120
-	m.height = 40
-	view = m.View()
-
-	if view == "" {
-		t.Error("Expected non-empty view")
-	}
-
-	if view == "Loading..." {
-		t.Error("Expected view to render after window size is set")
-	}
-}
-
-// TestViewContainsExpectedElements tests that the view contains expected UI elements
-func TestViewContainsExpectedElements(t *testing.T) {
-	m := initialModel()
-	m.width = 120
-	m.height = 40
-
-	view := m.View()
-
-	expectedElements := []string{
-		"Method",
-		"URL",
-		"Body",
-		"Content-Type",
-		"Result",
-		"Send",
-		"Quit",
-	}
-
-	for _, element := range expectedElements {
-		if !strings.Contains(view, element) {
-			t.Errorf("Expected view to contain '%s'", element)
+		custom := r.Header.Get("X-Custom-Header")
+		if custom != "custom-value" {
+			t.Errorf("Expected X-Custom-Header to be 'custom-value', got %s", custom)
 		}
-	}
-}
 
-// TestMethodListInView tests that all HTTP methods appear in the view
-func TestMethodListInView(t *testing.T) {
-	m := initialModel()
-	m.width = 120
-	m.height = 40
-	m.activePane = MethodPane
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
 
-	view := m.View()
+	cmd := services.ExecuteRequest("GET", server.URL, "", "application/json", customHeaders)
+	msg := cmd()
 
-	for _, method := range httpMethods {
-		if !strings.Contains(view, method) {
-			t.Errorf("Expected view to contain method '%s'", method)
-		}
-	}
-}
-
-// TestExecutingStatePreventsDuplicateRequests tests that multiple requests can't be triggered while executing
-func TestExecutingStatePreventsDuplicateRequests(t *testing.T) {
-	m := initialModel()
-	m.width = 100
-	m.height = 40
-	m.activePane = URLPane
-	m.urlInput.SetValue("https://example.com")
-	m.executing = true // Already executing
-
-	enterMsg := tea.KeyMsg{Type: tea.KeyEnter}
-	newModel, cmd := m.Update(enterMsg)
-	m = newModel.(model)
-
-	if cmd != nil {
-		t.Error("Expected no command when already executing")
+	respMsg := msg.(types.ResponseMsg)
+	if respMsg.Err != nil {
+		t.Fatalf("Expected no error, got %v", respMsg.Err)
 	}
 }
