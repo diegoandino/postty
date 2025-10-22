@@ -25,12 +25,16 @@ func New() types.Model {
 	vp := viewport.New(40, 10)
 	vp.SetContent("")
 
+	hvp := viewport.New(40, 10)
+	hvp.SetContent("")
+
 	hei := textinput.New()
 	hei.Placeholder = "Enter header value"
 	hei.CharLimit = 500
 	hei.Width = 30
 
 	defaultHeaders := []types.Header{}
+	history := []types.HistoryItem{}
 
 	return types.Model{
 		ActivePane:           types.URLPane,
@@ -48,6 +52,10 @@ func New() types.Model {
 		HeadersMode:          types.HeadersViewMode,
 		SelectedTemplate:     0,
 		HeaderEditInput:      hei,
+		History:              history,
+		SelectedHistory:      0,
+		HistoryViewport:      hvp,
+		PendingRequest:       nil,
 	}
 }
 

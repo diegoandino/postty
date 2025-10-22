@@ -11,24 +11,34 @@ func HandleWindowSize(m types.Model, msg tea.WindowSizeMsg) types.Model {
 	m.Width = msg.Width
 	m.Height = msg.Height
 
-	rightColumnWidth := 35
-	leftColumnWidth := m.Width - rightColumnWidth - 4
+	// Three-column layout: History | Middle | Right
+	historyColumnWidth := 35
+	rightColumnWidth := 40
+	middleColumnWidth := m.Width - historyColumnWidth - rightColumnWidth - 6
 
-	if leftColumnWidth < 40 {
-		leftColumnWidth = 40
-		rightColumnWidth = m.Width - leftColumnWidth - 4
+	// Ensure minimum widths
+	if middleColumnWidth < 40 {
+		middleColumnWidth = 40
+		remainingWidth := m.Width - middleColumnWidth - 6
+		historyColumnWidth = remainingWidth / 2
+		rightColumnWidth = remainingWidth - historyColumnWidth
+
+		if historyColumnWidth < 25 {
+			historyColumnWidth = 25
+		}
 		if rightColumnWidth < 20 {
 			rightColumnWidth = 20
 		}
 	}
 
-	urlInputWidth := leftColumnWidth - 8
+	// URL and Body inputs are in the middle column
+	urlInputWidth := middleColumnWidth - 8
 	if urlInputWidth < 20 {
 		urlInputWidth = 20
 	}
 	m.URLInput.Width = urlInputWidth
 
-	bodyInputWidth := leftColumnWidth - 8
+	bodyInputWidth := middleColumnWidth - 8
 	if bodyInputWidth < 20 {
 		bodyInputWidth = 20
 	}
@@ -69,13 +79,21 @@ func HandleWindowSize(m types.Model, msg tea.WindowSizeMsg) types.Model {
 	}
 	m.BodyInput.SetHeight(bodyContentHeight)
 
-	resultPaneWidth := leftColumnWidth + rightColumnWidth
-	viewportWidth := resultPaneWidth - 4
+	// Response viewport is in the middle column
+	viewportWidth := middleColumnWidth - 4
 	if viewportWidth < 20 {
 		viewportWidth = 20
 	}
 	m.ResponseViewport.Width = viewportWidth
 	m.ResponseViewport.Height = resultContentHeight - 1
+
+	// History viewport takes full height of left column
+	historyViewportWidth := historyColumnWidth - 4
+	if historyViewportWidth < 20 {
+		historyViewportWidth = 20
+	}
+	m.HistoryViewport.Width = historyViewportWidth
+	m.HistoryViewport.Height = contentHeight - 4 // Account for title and help text
 
 	return m
 }

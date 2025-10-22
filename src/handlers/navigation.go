@@ -11,7 +11,7 @@ import (
 // HandleTab handles Tab key navigation
 func HandleTab(m types.Model) (types.Model, tea.Cmd) {
 	m.ActivePane++
-	if m.ActivePane > types.HeadersPane {
+	if m.ActivePane > types.HistoryPane {
 		m.ActivePane = types.URLPane
 	}
 
@@ -34,7 +34,7 @@ func HandleTab(m types.Model) (types.Model, tea.Cmd) {
 func HandleShiftTab(m types.Model) (types.Model, tea.Cmd) {
 	m.ActivePane--
 	if m.ActivePane < types.URLPane {
-		m.ActivePane = types.HeadersPane
+		m.ActivePane = types.HistoryPane
 	}
 
 	m.URLInput.Blur()

@@ -8,24 +8,36 @@ import (
 
 // Dimensions holds the calculated dimensions for each pane
 type Dimensions struct {
-	LeftColumnWidth  int
-	RightColumnWidth int
-	URLHeight        int
-	MethodHeight     int
-	BodyHeight       int
-	HeaderHeight     int
-	HeadersHeight    int
-	ResultHeight     int
+	HistoryColumnWidth int
+	MiddleColumnWidth  int
+	RightColumnWidth   int
+	URLHeight          int
+	MethodHeight       int
+	BodyHeight         int
+	HeaderHeight       int
+	HeadersHeight      int
+	HistoryHeight      int
+	ResultHeight       int
 }
 
 // CalculateDimensions calculates all pane dimensions based on terminal size
 func CalculateDimensions(width, height int) Dimensions {
+	// Three-column layout: History | Middle | Right
+	historyColumnWidth := 35
 	rightColumnWidth := 40
-	leftColumnWidth := width - rightColumnWidth - 4
+	middleColumnWidth := width - historyColumnWidth - rightColumnWidth - 6
 
-	if leftColumnWidth < 40 {
-		leftColumnWidth = 40
-		rightColumnWidth = width - leftColumnWidth - 4
+	// Ensure minimum widths
+	if middleColumnWidth < 40 {
+		middleColumnWidth = 40
+		// Adjust other columns if needed
+		remainingWidth := width - middleColumnWidth - 6
+		historyColumnWidth = remainingWidth / 2
+		rightColumnWidth = remainingWidth - historyColumnWidth
+
+		if historyColumnWidth < 25 {
+			historyColumnWidth = 25
+		}
 		if rightColumnWidth < 20 {
 			rightColumnWidth = 20
 		}
@@ -38,6 +50,9 @@ func CalculateDimensions(width, height int) Dimensions {
 	if contentHeight < 24 {
 		contentHeight = 24
 	}
+
+	// History takes full height of left column
+	historyHeight := contentHeight
 
 	urlHeight := 3
 	sectionHeight := contentHeight / 3
@@ -65,20 +80,23 @@ func CalculateDimensions(width, height int) Dimensions {
 		bodyHeight = 5
 	}
 
+	// Result height without history
 	resultHeight := (contentHeight - urlHeight - bodyHeight) - 10
 	if resultHeight < 8 {
 		resultHeight = 8
 	}
 
 	return Dimensions{
-		LeftColumnWidth:  leftColumnWidth,
-		RightColumnWidth: rightColumnWidth,
-		URLHeight:        urlHeight,
-		MethodHeight:     methodHeight,
-		BodyHeight:       bodyHeight,
-		HeaderHeight:     headerHeight,
-		HeadersHeight:    headersHeight,
-		ResultHeight:     resultHeight,
+		HistoryColumnWidth: historyColumnWidth,
+		MiddleColumnWidth:  middleColumnWidth,
+		RightColumnWidth:   rightColumnWidth,
+		URLHeight:          urlHeight,
+		MethodHeight:       methodHeight,
+		BodyHeight:         bodyHeight,
+		HeaderHeight:       headerHeight,
+		HeadersHeight:      headersHeight,
+		HistoryHeight:      historyHeight,
+		ResultHeight:       resultHeight,
 	}
 }
 
@@ -92,22 +110,26 @@ func RenderLayout(m types.Model) string {
 	dims := CalculateDimensions(m.Width, m.Height)
 
 	// Render all panes
-	urlPane := RenderURLPane(m, styles, dims.LeftColumnWidth, dims.URLHeight)
+	historyPane := RenderHistoryPane(m, styles, dims.HistoryColumnWidth, dims.HistoryHeight)
+
+	urlPane := RenderURLPane(m, styles, dims.MiddleColumnWidth, dims.URLHeight)
+	bodyPane := RenderBodyPane(m, styles, dims.MiddleColumnWidth, dims.BodyHeight)
+	resultPane := RenderResponsePane(m, styles, dims.MiddleColumnWidth, dims.ResultHeight)
+
 	methodPane := RenderMethodPane(m, styles, dims.RightColumnWidth, dims.MethodHeight)
-	bodyPane := RenderBodyPane(m, styles, dims.LeftColumnWidth, dims.BodyHeight)
 	headerPane := RenderContentTypePane(m, styles, dims.RightColumnWidth, dims.HeaderHeight)
-	resultPane := RenderResponsePane(m, styles, dims.LeftColumnWidth, dims.ResultHeight)
 	headersPane := RenderCustomHeadersPane(m, styles, dims.RightColumnWidth, dims.HeadersHeight)
 
-	// Compose layout
-	leftColumn := lipgloss.JoinVertical(lipgloss.Left, urlPane, bodyPane, resultPane)
+	// Compose layout: History | Middle | Right
+	historyColumn := historyPane
+	middleColumn := lipgloss.JoinVertical(lipgloss.Left, urlPane, bodyPane, resultPane)
 	rightColumn := lipgloss.JoinVertical(lipgloss.Left, methodPane, headerPane, headersPane)
-	mainView := lipgloss.JoinHorizontal(lipgloss.Top, leftColumn, rightColumn)
+	mainView := lipgloss.JoinHorizontal(lipgloss.Top, historyColumn, middleColumn, rightColumn)
 
 	// Render help bar
 	help := styles.Help.Render(
 		styles.Key.Render("Tab") + " Next Pane │ " +
-			styles.Key.Render("1-6") + " Jump │ " +
+			styles.Key.Render("1-7") + " Jump │ " +
 			styles.Key.Render("↑↓jk") + " Scroll │ " +
 			styles.Key.Render("Enter") + "/" + styles.Key.Render("Alt+Enter") + " Send │ " +
 			styles.Key.Render("esc") + "/" + styles.Key.Render("q") + " Quit",

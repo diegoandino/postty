@@ -3,7 +3,6 @@ package handlers
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"postty/src/services"
 	"postty/src/types"
 )
 
@@ -23,16 +22,5 @@ func HandleMethodNavigation(m types.Model, direction string) types.Model {
 
 // HandleMethodExecute handles request execution from method pane
 func HandleMethodExecute(m types.Model) (types.Model, tea.Cmd) {
-	if m.URLInput.Value() != "" && !m.Executing {
-		m.Executing = true
-		m.ResponseViewport.SetContent("Executing request...")
-		return m, services.ExecuteRequest(
-			types.HTTPMethods[m.SelectedMethod],
-			m.URLInput.Value(),
-			m.BodyInput.Value(),
-			types.ContentTypes[m.SelectedHeader],
-			m.CustomHeaders,
-		)
-	}
-	return m, nil
+	return ExecuteRequestWithHistory(m)
 }

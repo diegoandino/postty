@@ -3,7 +3,6 @@ package handlers
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"postty/src/services"
 	"postty/src/types"
 )
 
@@ -39,16 +38,8 @@ func Update(msg tea.Msg, m types.Model) (types.Model, tea.Cmd) {
 		if m.ActivePane == types.URLPane || m.ActivePane == types.BodyPane || (m.ActivePane == types.HeadersPane && m.HeadersMode == types.HeadersEditMode) {
 			// Text input panes - handle Alt+Enter for body pane execution
 			if msg.Type == tea.KeyEnter && msg.Alt {
-				if m.ActivePane == types.BodyPane && m.URLInput.Value() != "" && !m.Executing {
-					m.Executing = true
-					m.ResponseViewport.SetContent("Executing request...")
-					return m, services.ExecuteRequest(
-						types.HTTPMethods[m.SelectedMethod],
-						m.URLInput.Value(),
-						m.BodyInput.Value(),
-						types.ContentTypes[m.SelectedHeader],
-						m.CustomHeaders,
-					)
+				if m.ActivePane == types.BodyPane {
+					return ExecuteRequestWithHistory(m)
 				}
 				return m, nil
 			}
@@ -67,18 +58,7 @@ func Update(msg tea.Msg, m types.Model) (types.Model, tea.Cmd) {
 				}
 
 				if m.ActivePane == types.URLPane {
-					if m.URLInput.Value() != "" && !m.Executing {
-						m.Executing = true
-						m.ResponseViewport.SetContent("Executing request...")
-						return m, services.ExecuteRequest(
-							types.HTTPMethods[m.SelectedMethod],
-							m.URLInput.Value(),
-							m.BodyInput.Value(),
-							types.ContentTypes[m.SelectedHeader],
-							m.CustomHeaders,
-						)
-					}
-					return m, nil
+					return ExecuteRequestWithHistory(m)
 				}
 			}
 		} else {
@@ -102,6 +82,8 @@ func Update(msg tea.Msg, m types.Model) (types.Model, tea.Cmd) {
 				return HandleJumpToPane(m, types.ResponsePane)
 			case "6":
 				return HandleJumpToPane(m, types.HeadersPane)
+			case "7":
+				return HandleJumpToPane(m, types.HistoryPane)
 			}
 
 			// Pane-specific handlers
@@ -198,6 +180,40 @@ func Update(msg tea.Msg, m types.Model) (types.Model, tea.Cmd) {
 						m = HandleHeaderEditCancel(m)
 						return m, nil
 					}
+				}
+
+			case types.HistoryPane:
+				switch msg.String() {
+				case "up", "k":
+					m = HandleHistoryNavigation(m, "up")
+					return m, nil
+				case "down", "j":
+					m = HandleHistoryNavigation(m, "down")
+					return m, nil
+				case "pgup":
+					m.HistoryViewport.HalfPageUp()
+					return m, nil
+				case "pgdown":
+					m.HistoryViewport.HalfPageDown()
+					return m, nil
+				case "home", "g":
+					m.SelectedHistory = 0
+					m.HistoryViewport.SetYOffset(0)
+					return m, nil
+				case "end", "G":
+					if len(m.History) > 0 {
+						m.SelectedHistory = len(m.History) - 1
+						// Scroll to bottom (will be adjusted by render if needed)
+						m.HistoryViewport.GotoBottom()
+					}
+					return m, nil
+				case "enter":
+					return HandleHistoryLoad(m)
+				case "d", "x":
+					m = HandleHistoryDelete(m)
+					return m, nil
+				case "esc":
+					return m, tea.Quit
 				}
 			}
 		}

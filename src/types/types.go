@@ -16,6 +16,7 @@ const (
 	HeaderPane
 	ResponsePane
 	HeadersPane
+	HistoryPane
 )
 
 // HeadersMode represents the current mode of the headers pane
@@ -40,6 +41,18 @@ type HeaderTemplate struct {
 	Placeholder string
 }
 
+// HistoryItem represents a single HTTP request in history
+type HistoryItem struct {
+	Method        string
+	URL           string
+	Body          string
+	ContentType   string
+	Headers       []Header
+	StatusCode    int
+	Timestamp     string
+	ResponseBody  string
+}
+
 // Model represents the application state
 type Model struct {
 	ActivePane           Pane
@@ -57,6 +70,10 @@ type Model struct {
 	HeadersMode          HeadersMode
 	SelectedTemplate     int
 	HeaderEditInput      textinput.Model
+	History              []HistoryItem
+	SelectedHistory      int
+	HistoryViewport      viewport.Model
+	PendingRequest       *HistoryItem // Stores the current request being executed
 }
 
 // ResponseMsg represents a message containing HTTP response data
