@@ -1,6 +1,6 @@
 # Postty
 
-A straight to the point terminal-based REST API client inspired by lazygit.
+A terminal-based REST API client inspired by lazygit.
 
 ## Features
 
