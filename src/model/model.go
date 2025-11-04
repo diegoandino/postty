@@ -28,6 +28,12 @@ func New() types.Model {
 	hvp := viewport.New(40, 10)
 	hvp.SetContent("")
 
+	mvp := viewport.New(40, 8)
+	mvp.SetContent("")
+
+	ctvp := viewport.New(40, 6)
+	ctvp.SetContent("")
+
 	hei := textinput.New()
 	hei.Placeholder = "Enter header value"
 	hei.CharLimit = 500
@@ -43,6 +49,8 @@ func New() types.Model {
 		URLInput:             ti,
 		BodyInput:            ta,
 		ResponseViewport:     vp,
+		MethodViewport:       mvp,
+		ContentTypeViewport:  ctvp,
 		StatusCode:           0,
 		Width:                0,
 		Height:               0,

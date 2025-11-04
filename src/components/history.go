@@ -27,7 +27,6 @@ func wrapText(text string, width int) []string {
 
 // RenderHistoryPane renders the request history pane
 func RenderHistoryPane(m types.Model, styles Styles, width, height int) string {
-	// Title with count
 	countText := ""
 	if len(m.History) > 0 {
 		countText = fmt.Sprintf(" (%d)", len(m.History))
@@ -113,7 +112,7 @@ func RenderHistoryPane(m types.Model, styles Styles, width, height int) string {
 		if estimatedLinePosition < m.HistoryViewport.YOffset {
 			// Selected item is above visible area, scroll up
 			m.HistoryViewport.SetYOffset(estimatedLinePosition)
-		} else if estimatedLinePosition >= m.HistoryViewport.YOffset + viewportHeight - 5 {
+		} else if estimatedLinePosition >= m.HistoryViewport.YOffset+viewportHeight-5 {
 			// Selected item is below visible area, scroll down
 			m.HistoryViewport.SetYOffset(estimatedLinePosition - viewportHeight + 5)
 		}
@@ -128,5 +127,6 @@ func RenderHistoryPane(m types.Model, styles Styles, width, height int) string {
 		style = styles.ActiveBorder
 	}
 
-	return style.Width(width).Height(height).Render(historyContent)
+	// Subtract 2 for borders (top + bottom)
+	return style.Width(width).Height(height - 2).Render(historyContent)
 }

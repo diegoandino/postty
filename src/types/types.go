@@ -61,6 +61,8 @@ type Model struct {
 	URLInput             textinput.Model
 	BodyInput            textarea.Model
 	ResponseViewport     viewport.Model
+	MethodViewport       viewport.Model
+	ContentTypeViewport  viewport.Model
 	StatusCode           int
 	Width                int
 	Height               int

@@ -30,7 +30,6 @@ func CalculateDimensions(width, height int) Dimensions {
 	// Ensure minimum widths
 	if middleColumnWidth < 40 {
 		middleColumnWidth = 40
-		// Adjust other columns if needed
 		remainingWidth := width - middleColumnWidth - 6
 		historyColumnWidth = remainingWidth / 2
 		rightColumnWidth = remainingWidth - historyColumnWidth
@@ -43,48 +42,57 @@ func CalculateDimensions(width, height int) Dimensions {
 		}
 	}
 
-	availableHeight := height - 2
-	borderOverhead := 6
-	contentHeight := availableHeight - borderOverhead
-
-	if contentHeight < 24 {
-		contentHeight = 24
+	// Calculate total available height for panes
+	// Layout format: "\n" + mainView + "\n" + help
+	// Account for:
+	// - Top padding (\n before mainView): 1 line
+	// - Space before help (\n after mainView): 1 line
+	// - Help bar: 1 line
+	// Total overhead: 3 lines
+	totalAvailable := height - 3
+	if totalAvailable < 20 {
+		totalAvailable = 20 // Minimum height to fit all content
 	}
 
-	// History takes full height of left column
-	historyHeight := contentHeight
+	// ALL THREE COLUMNS MUST BE THIS HEIGHT
+	columnHeight := totalAvailable
+	urlHeight := 4
 
-	urlHeight := 3
-	sectionHeight := contentHeight / 3
-	if sectionHeight < 8 {
-		sectionHeight = 8
+	// Body: flexible but reasonable minimum
+	bodyHeight := columnHeight / 4
+	if bodyHeight < 6 {
+		bodyHeight = 6
 	}
 
-	methodHeight := sectionHeight
-	if methodHeight < 8 {
-		methodHeight = 8
+	// Result: remainder (ensures middle column = columnHeight exactly)
+	resultHeight := columnHeight - urlHeight - bodyHeight
+
+	// Right column breakdown
+	methodHeight := (columnHeight * 40) / 100
+	if methodHeight < 10 {
+		methodHeight = 10
 	}
 
-	headerHeight := sectionHeight - 3
-	if headerHeight < 5 {
-		headerHeight = 5
+	// Content-Type: needs to fit 5 types + title + borders = ~8 lines minimum
+	headerHeight := (columnHeight * 30) / 100
+	if headerHeight < 8 {
+		headerHeight = 8
 	}
 
-	headersHeight := contentHeight - methodHeight - headerHeight
-	if headersHeight < 6 {
-		headersHeight = 6
+	// Headers: remainder (ensures right column = columnHeight exactly)
+	headersHeight := columnHeight - methodHeight - headerHeight
+	if headersHeight < 5 {
+		// If not enough space, shrink the other panes proportionally
+		headersHeight = 5
+		methodHeight = (columnHeight - 5 - headerHeight)
+		if methodHeight < 10 {
+			methodHeight = 10
+			headerHeight = columnHeight - 15
+		}
 	}
 
-	bodyHeight := methodHeight - urlHeight
-	if bodyHeight < 5 {
-		bodyHeight = 5
-	}
-
-	// Result height without history
-	resultHeight := (contentHeight - urlHeight - bodyHeight) - 10
-	if resultHeight < 8 {
-		resultHeight = 8
-	}
+	// History: matches column height exactly
+	historyHeight := columnHeight
 
 	return Dimensions{
 		HistoryColumnWidth: historyColumnWidth,
@@ -135,5 +143,6 @@ func RenderLayout(m types.Model) string {
 			styles.Key.Render("esc") + "/" + styles.Key.Render("q") + " Quit",
 	)
 
-	return mainView + "\n" + help
+	// Add top padding and combine with help bar
+	return "\n" + mainView + "\n" + help
 }

@@ -3,6 +3,7 @@ package handlers
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
+	"postty/src/components"
 	"postty/src/types"
 )
 
@@ -11,89 +12,85 @@ func HandleWindowSize(m types.Model, msg tea.WindowSizeMsg) types.Model {
 	m.Width = msg.Width
 	m.Height = msg.Height
 
-	// Three-column layout: History | Middle | Right
-	historyColumnWidth := 35
-	rightColumnWidth := 40
-	middleColumnWidth := m.Width - historyColumnWidth - rightColumnWidth - 6
+	// Use centralized dimension calculations
+	dims := components.CalculateDimensions(m.Width, m.Height)
 
-	// Ensure minimum widths
-	if middleColumnWidth < 40 {
-		middleColumnWidth = 40
-		remainingWidth := m.Width - middleColumnWidth - 6
-		historyColumnWidth = remainingWidth / 2
-		rightColumnWidth = remainingWidth - historyColumnWidth
-
-		if historyColumnWidth < 25 {
-			historyColumnWidth = 25
-		}
-		if rightColumnWidth < 20 {
-			rightColumnWidth = 20
-		}
-	}
-
-	// URL and Body inputs are in the middle column
-	urlInputWidth := middleColumnWidth - 8
+	// Update URL input width (account for borders + padding)
+	urlInputWidth := dims.MiddleColumnWidth - 6
 	if urlInputWidth < 20 {
 		urlInputWidth = 20
 	}
 	m.URLInput.Width = urlInputWidth
 
-	bodyInputWidth := middleColumnWidth - 8
+	// Update Body input width and height
+	bodyInputWidth := dims.MiddleColumnWidth - 6
 	if bodyInputWidth < 20 {
 		bodyInputWidth = 20
 	}
 	m.BodyInput.SetWidth(bodyInputWidth)
 
-	availableHeight := m.Height - 2
-	borderOverhead := 6
-	contentHeight := availableHeight - borderOverhead
-
-	if contentHeight < 24 {
-		contentHeight = 24
-	}
-
-	urlContentHeight := 3
-	topSectionContentHeight := contentHeight - int(float64(contentHeight)*0.4)
-	if topSectionContentHeight < 14 {
-		topSectionContentHeight = 14
-	}
-
-	resultContentHeight := contentHeight - topSectionContentHeight
-	if resultContentHeight < 6 {
-		resultContentHeight = 6
-	}
-
-	methodContentHeight := int(float64(topSectionContentHeight) * 0.55)
-	if methodContentHeight < 8 {
-		methodContentHeight = 8
-	}
-	headerContentHeight := (topSectionContentHeight - methodContentHeight) - 2
-	if headerContentHeight < 5 {
-		headerContentHeight = 5
-	}
-
-	rightColumnContentHeight := methodContentHeight + headerContentHeight
-	bodyContentHeight := rightColumnContentHeight - urlContentHeight
-	if bodyContentHeight < 5 {
-		bodyContentHeight = 5
+	// Body height: pane height minus border (2) and title (1) and padding (1)
+	bodyContentHeight := dims.BodyHeight - 4
+	if bodyContentHeight < 3 {
+		bodyContentHeight = 3
 	}
 	m.BodyInput.SetHeight(bodyContentHeight)
 
-	// Response viewport is in the middle column
-	viewportWidth := middleColumnWidth - 4
+	// Update Response viewport
+	viewportWidth := dims.MiddleColumnWidth - 4
 	if viewportWidth < 20 {
 		viewportWidth = 20
 	}
 	m.ResponseViewport.Width = viewportWidth
-	m.ResponseViewport.Height = resultContentHeight - 1
 
-	// History viewport takes full height of left column
-	historyViewportWidth := historyColumnWidth - 4
+	// Response height: pane height minus border (2) and title line (1) and padding (1)
+	responseViewportHeight := dims.ResultHeight - 4
+	if responseViewportHeight < 5 {
+		responseViewportHeight = 5
+	}
+	m.ResponseViewport.Height = responseViewportHeight
+
+	// Update History viewport
+	historyViewportWidth := dims.HistoryColumnWidth - 4
 	if historyViewportWidth < 20 {
 		historyViewportWidth = 20
 	}
 	m.HistoryViewport.Width = historyViewportWidth
-	m.HistoryViewport.Height = contentHeight - 4 // Account for title and help text
+
+	// History height: pane height minus border (2) and title (1) and help text (1) and padding (2)
+	historyViewportHeight := dims.HistoryHeight - 6
+	if historyViewportHeight < 5 {
+		historyViewportHeight = 5
+	}
+	m.HistoryViewport.Height = historyViewportHeight
+
+	// Update Method viewport
+	methodViewportWidth := dims.RightColumnWidth - 4
+	if methodViewportWidth < 15 {
+		methodViewportWidth = 15
+	}
+	m.MethodViewport.Width = methodViewportWidth
+
+	// Method height: pane height minus border (2) and title (1) and padding (1)
+	methodViewportHeight := dims.MethodHeight - 4
+	if methodViewportHeight < 3 {
+		methodViewportHeight = 3
+	}
+	m.MethodViewport.Height = methodViewportHeight
+
+	// Update ContentType viewport
+	contentTypeViewportWidth := dims.RightColumnWidth - 4
+	if contentTypeViewportWidth < 15 {
+		contentTypeViewportWidth = 15
+	}
+	m.ContentTypeViewport.Width = contentTypeViewportWidth
+
+	// ContentType height: pane height minus border (2) and title (1) and padding (1)
+	contentTypeViewportHeight := dims.HeaderHeight - 4
+	if contentTypeViewportHeight < 3 {
+		contentTypeViewportHeight = 3
+	}
+	m.ContentTypeViewport.Height = contentTypeViewportHeight
 
 	return m
 }

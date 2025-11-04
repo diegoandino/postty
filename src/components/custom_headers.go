@@ -15,8 +15,7 @@ func RenderCustomHeadersPane(m types.Model, styles Styles, width, height int) st
 	case types.HeadersViewMode:
 		if len(m.CustomHeaders) == 0 {
 			headersContent += "  (no headers)\n"
-			headersContent += "\n"
-			headersContent += "  Press 'a' to add\n"
+			headersContent += "  Press 'a' to add"
 		} else {
 			for i, h := range m.CustomHeaders {
 				prefix := "  "
@@ -29,8 +28,7 @@ func RenderCustomHeadersPane(m types.Model, styles Styles, width, height int) st
 				}
 				headersContent += prefix + headerLine + "\n"
 			}
-			headersContent += "\n"
-			headersContent += "  a: add | d: delete | e: edit\n"
+			headersContent += "  a: add | d: del | e: edit"
 		}
 
 	case types.HeadersAddMode:
@@ -63,5 +61,6 @@ func RenderCustomHeadersPane(m types.Model, styles Styles, width, height int) st
 		style = styles.ActiveBorder
 	}
 
-	return style.Width(width).Height(height).Render(headersContent)
+	// Subtract 2 for borders (top + bottom)
+	return style.Width(width).Height(height - 2).Render(headersContent)
 }

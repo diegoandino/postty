@@ -70,22 +70,26 @@ func HandleTemplateNavigation(m types.Model, direction string) types.Model {
 // HandleTemplateSelect selects a template and adds it as a header
 func HandleTemplateSelect(m types.Model) (types.Model, tea.Cmd) {
 	template := types.HeaderTemplates[m.SelectedTemplate]
+
+	// Add the new header
 	if template.Key == "" {
+		// Custom header - user will define both key and value
 		m.CustomHeaders = append(m.CustomHeaders, types.Header{Key: "Custom-Header", Value: ""})
-		m.SelectedCustomHeader = len(m.CustomHeaders) - 1
-		m.HeadersMode = types.HeadersEditMode
-		m.HeaderEditInput.SetValue("")
-		m.HeaderEditInput.Focus()
-		return m, textinput.Blink
 	} else {
+		// Template header - use template key and placeholder as initial value
 		m.CustomHeaders = append(m.CustomHeaders, types.Header{
 			Key:   template.Key,
 			Value: template.Placeholder,
 		})
-		m.SelectedCustomHeader = len(m.CustomHeaders) - 1
-		m.HeadersMode = types.HeadersViewMode
 	}
-	return m, nil
+
+	// Always go to edit mode to let user edit the value immediately
+	m.SelectedCustomHeader = len(m.CustomHeaders) - 1
+	m.HeadersMode = types.HeadersEditMode
+	m.HeaderEditInput.SetValue(m.CustomHeaders[m.SelectedCustomHeader].Value)
+	m.HeaderEditInput.Focus()
+
+	return m, textinput.Blink
 }
 
 // HandleHeaderEditSave saves the edited header value

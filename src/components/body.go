@@ -14,5 +14,6 @@ func RenderBodyPane(m types.Model, styles Styles, width, height int) string {
 		style = styles.ActiveBorder
 	}
 
-	return style.Width(width).Height(height).Render(bodyContent)
+	// Subtract 2 for borders (top + bottom)
+	return style.Width(width).Height(height - 2).Render(bodyContent)
 }
